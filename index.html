@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 炼金叔叔 10000x BTC/USDT 永续合约模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: #0a0a1f; }
+        .price-up { color: #00ff88; animation: flash 0.5s; }
+        .price-down { color: #ff3366; animation: flash 0.5s; }
+        @keyframes flash { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+    <div class="max-w-4xl mx-auto p-6">
+        <!-- 大警告 -->
+        <div class="bg-red-900/30 border border-red-500 text-red-400 text-center py-4 rounded-2xl mb-8">
+            ⚠️ 10000倍杠杆仅供娱乐！现实中 0.01% 波动就爆仓！纯模拟勿当真！
+        </div>
+
+        <h1 class="text-4xl font-bold text-center mb-2">🔥 炼金叔叔 10000x BTC/USDT</h1>
+        <p class="text-center text-gray-400 mb-8">永续合约模拟器 • 实时 WebSocket 更新</p>
+
+        <!-- 实时价格 + 图表 -->
+        <div class="bg-[#1a1a2e] rounded-3xl p-8 mb-8">
+            <div id="price" class="text-7xl font-bold text-center mb-2 transition-colors">加载中...</div>
+            <div id="price-change" class="text-center text-xl font-medium"></div>
+            <canvas id="priceChart" class="mt-6" height="180"></canvas>
+        </div>
+
+        <!-- 余额 & 杠杆 -->
+        <div class="grid grid-cols-2 gap-6 mb-8">
+            <div class="bg-[#1a1a2e] p-6 rounded-2xl">
+                <div class="text-gray-400 text-sm">账户余额</div>
+                <div id="balance" class="text-4xl font-bold text-emerald-400">10,000.00 USDT</div>
+            </div>
+            <div class="bg-[#1a1a2e] p-6 rounded-2xl">
+                <div class="text-gray-400 text-sm">杠杆倍数</div>
+                <div class="text-4xl font-bold text-amber-400">10,000x</div>
+            </div>
+        </div>
+
+        <!-- 当前仓位 -->
+        <div id="position-card" class="bg-[#1a1a2e] rounded-3xl p-8 mb-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-xl font-bold" id="pos-side"></div>
+                <button onclick="closePosition()" class="bg-red-600 hover:bg-red-700 px-8 py-3 rounded-xl font-medium">一键平仓</button>
+            </div>
+            <div id="pos-info" class="grid grid-cols-2 gap-6 text-lg"></div>
+        </div>
+
+        <!-- 开仓区域 -->
+        <div class="bg-[#1a1a2e] rounded-3xl p-8">
+            <div class="text-xl font-bold mb-6">开新仓位</div>
+            <div class="flex items-center gap-6">
+                <div class="flex-1">
+                    <label class="block text-gray-400 text-sm mb-2">保证金 (USDT)</label>
+                    <input id="margin" type="number" value="10" class="w-full bg-[#0f0f1f] border border-gray-600 rounded-2xl px-6 py-4 text-2xl focus:outline-none focus:border-amber-400">
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="openLong()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-2xl font-bold px-10 py-6 rounded-3xl transition">🚀 开多 (Long)</button>
+                    <button onclick="openShort()" class="flex-1 bg-red-600 hover:bg-red-500 text-2xl font-bold px-10 py-6 rounded-3xl transition">🔻 开空 (Short)</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center text-gray-500 mt-10 text-sm">
+            价格来自 Binance Futures 官方 WebSocket • 刷新页面进度自动保存 • 仅供娱乐
+        </div>
+    </div>
+
+    <script>
+        let balance = 10000;
+        let leverage = 10000;
+        let position = null;
+        let currentPrice = 0;
+        let prevPrice = 0;
+        let priceHistory = [];
+        let chart;
+
+        const wsUrl = "wss://fstream.binance.com/ws/btcusdt@markPrice";
+
+        function loadFromLocal() {
+            if (localStorage.getItem('simBalance')) balance = parseFloat(localStorage.getItem('simBalance'));
+            if (localStorage.getItem('simPosition')) position = JSON.parse(localStorage.getItem('simPosition'));
+        }
+
+        function saveToLocal() {
+            localStorage.setItem('simBalance', balance);
+            if (position) localStorage.setItem('simPosition', JSON.stringify(position));
+            else localStorage.removeItem('simPosition');
+        }
+
+        function updateBalance() {
+            document.getElementById('balance').textContent = balance.toLocaleString('zh-CN', {minimumFractionDigits: 2}) + ' USDT';
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('priceChart');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'BTC/USDT', data: [], borderColor: '#00ff88', tension: 0.4, borderWidth: 3 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { grid: { color: '#333' } } } }
+            });
+        }
+
+        function updateChart(price) {
+            priceHistory.push(price);
+            if (priceHistory.length > 80) priceHistory.shift();
+            chart.data.labels = priceHistory.map((_, i) => i);
+            chart.data.datasets[0].data = priceHistory;
+            chart.update('none');
+        }
+
+        function updatePrice(price) {
+            const priceEl = document.getElementById('price');
+            const changeEl = document.getElementById('price-change');
+            
+            if (prevPrice && price > prevPrice) {
+                priceEl.classList.add('price-up'); priceEl.classList.remove('price-down');
+            } else if (prevPrice && price < prevPrice) {
+                priceEl.classList.add('price-down'); priceEl.classList.remove('price-up');
+            }
+            priceEl.textContent = price.toFixed(2);
+            changeEl.textContent = prevPrice ? (price - prevPrice > 0 ? '▲ +' : '▼ ') + (price - prevPrice).toFixed(2) : '';
+            
+            prevPrice = price;
+            currentPrice = price;
+            updateChart(price);
+            
+            if (position) {
+                updatePosition();
+                checkLiquidation();
+            }
+        }
+
+        function connectWebSocket() {
+            const ws = new WebSocket(wsUrl);
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const price = parseFloat(data.p);
+                if (price) updatePrice(price);
+            };
+            ws.onclose = () => setTimeout(connectWebSocket, 3000); // 自动重连
+        }
+
+        function calculatePNL() {
+            if (!position) return 0;
+            const diff = position.side === 'long' 
+                ? currentPrice - position.entry 
+                : position.entry - currentPrice;
+            return diff * position.qty;
+        }
+
+        function updatePosition() {
+            const pnl = calculatePNL();
+            const roi = (pnl / position.margin) * 100;
+            const card = document.getElementById('position-card');
+            card.classList.remove('hidden');
+            
+            document.getElementById('pos-side').innerHTML = 
+                position.side === 'long' 
+                ? '🟢 <span class="text-emerald-400">多头仓位</span>' 
+                : '🔴 <span class="text-red-400">空头仓位</span>';
+            
+            document.getElementById('pos-info').innerHTML = `
+                <div>开仓价 <span class="font-bold">${position.entry.toFixed(2)}</span></div>
+                <div>仓位 <span class="font-bold">${position.qty.toFixed(6)} BTC</span></div>
+                <div>保证金 <span class="font-bold">${position.margin.toFixed(2)} USDT</span></div>
+                <div class="${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}">未实现盈亏 <span class="font-bold">${pnl.toFixed(2)} USDT (${roi.toFixed(2)}%)</span></div>
+            `;
+        }
+
+        function checkLiquidation() {
+            if (!position) return;
+            const pnl = calculatePNL();
+            if (pnl <= -position.margin * 0.999) {
+                balance += pnl; // 剩余保证金归零
+                alert(`💥 强平触发！\n亏损 ${pnl.toFixed(2)} USDT\n当前余额: ${balance.toFixed(2)} USDT`);
+                position = null;
+                document.getElementById('position-card').classList.add('hidden');
+                saveToLocal();
+                updateBalance();
+            }
+        }
+
+        function openPosition(side) {
+            if (position) return alert('请先平掉当前仓位！');
+            let margin = parseFloat(document.getElementById('margin').value);
+            if (!margin || margin <= 0 || margin > balance) return alert('保证金输入错误或余额不足！');
+            
+            const qty = (margin * leverage) / currentPrice;
+            position = { side, entry: currentPrice, qty, margin };
+            balance -= margin;
+            
+            updateBalance();
+            updatePosition();
+            saveToLocal();
+            alert(`✅ ${side === 'long' ? '开多' : '开空'}成功！仓位 ≈ ${qty.toFixed(6)} BTC`);
+        }
+
+        function openLong() { openPosition('long'); }
+        function openShort() { openPosition('short'); }
+
+        function closePosition() {
+            if (!position) return;
+            const pnl = calculatePNL();
+            balance += position.margin + pnl;
+            const result = pnl >= 0 ? '盈利' : '亏损';
+            alert(`✅ 已平仓\n${result} ${pnl.toFixed(2)} USDT\n余额: ${balance.toFixed(2)} USDT`);
+            position = null;
+            document.getElementById('position-card').classList.add('hidden');
+            updateBalance();
+            saveToLocal();
+        }
+
+        // 初始化
+        window.onload = () => {
+            loadFromLocal();
+            updateBalance();
+            initChart();
+            connectWebSocket();
+            
+            // 初始价格获取一次（防止WS延迟）
+            fetch('https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT')
+                .then(r => r.json())
+                .then(data => {
+                    if (!currentPrice) updatePrice(parseFloat(data.price));
+                });
+        };
+    </script>
+</body>
+</html>

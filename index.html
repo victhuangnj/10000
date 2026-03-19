@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔥 炼金叔叔 10000x 永续合约模拟器 v2.2</title>
+    <title>🔥 炼金叔叔 10000x 永续合约模拟器 v2.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <!-- tsParticles CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-crosshair@2.0.0/dist/chartjs-plugin-crosshair.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/3.5.0/tsparticles.bundle.min.js"></script>
     <style>
         body {
-            background: linear-gradient(135deg, #0a001a 0%, #000814 100%);
+            background: linear-gradient(180deg, #0d001a 0%, #000d1a 50%, #000814 100%);
             background-attachment: fixed;
             overflow-x: hidden;
         }
         #tsparticles {
             position: fixed;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
+            inset: 0;
             z-index: -2;
+            pointer-events: none;
         }
         .glass {
             background: rgba(20, 20, 40, 0.45);
@@ -42,7 +41,6 @@
         @keyframes neon-pulse-up { from { text-shadow: 0 0 10px #00ffc8, 0 0 20px #00ffc8; } to { text-shadow: 0 0 30px #00ffc8, 0 0 60px #00ffc8; } }
         @keyframes neon-pulse-down { from { text-shadow: 0 0 10px #ff3366, 0 0 20px #ff3366; } to { text-shadow: 0 0 30px #ff3366, 0 0 60px #ff3366; } }
         .tab-active { border-bottom: 4px solid #00ffc8; color: #00ffc8; text-shadow: 0 0 15px #00ffc8; }
-        /* Loading 动画 */
         #loading {
             position: fixed;
             inset: 0;
@@ -71,21 +69,19 @@
             text-shadow: 0 0 20px #00ffc8;
             animation: pulse 2s infinite;
         }
+        .grid-line { color: rgba(100, 100, 120, 0.18) !important; borderDash: [5, 5]; }
     </style>
 </head>
 <body class="text-white min-h-screen relative">
 
-    <!-- 粒子背景 -->
     <div id="tsparticles"></div>
 
-    <!-- Loading 动画 -->
     <div id="loading">
         <div class="loader"></div>
         <div id="loading-text">炼金初始化中...</div>
     </div>
 
     <div class="max-w-5xl mx-auto p-6 relative z-10">
-        <!-- 警告 -->
         <div class="glass rounded-3xl p-6 mb-8 text-center neon-glow">
             <p class="text-red-300 font-bold text-lg">⚠️ 纯娱乐模拟！高杠杆现实中极度危险！</p>
         </div>
@@ -97,18 +93,27 @@
             </div>
         </div>
 
-        <!-- 交易对 Tab -->
         <div class="flex flex-wrap gap-4 mb-10 justify-center">
             <button onclick="switchSymbol('BTC')" id="tab-BTC" class="tab glass px-8 py-4 rounded-2xl font-bold text-xl neon-glow tab-active">BTC/USDT</button>
             <button onclick="switchSymbol('ETH')" id="tab-ETH" class="tab glass px-8 py-4 rounded-2xl font-bold text-xl neon-glow">ETH/USDT</button>
             <button onclick="switchSymbol('SOL')" id="tab-SOL" class="tab glass px-8 py-4 rounded-2xl font-bold text-xl neon-glow">SOL/USDT</button>
         </div>
 
-        <!-- 价格 + 图表 -->
         <div class="glass rounded-3xl p-8 mb-12 neon-glow">
             <div id="price" class="text-8xl md:text-9xl font-black text-center mb-4 transition-all drop-shadow-2xl">加载中...</div>
-            <div id="price-change" class="text-3xl text-center font-medium mb-8"></div>
-            <canvas id="priceChart" height="300"></canvas>
+            <div id="price-change" class="text-3xl text-center font-medium mb-6"></div>
+
+            <div class="flex justify-end mb-4">
+                <button id="toggleCandle" class="glass px-6 py-2 rounded-full text-sm font-medium neon-glow">切换蜡烛图</button>
+            </div>
+
+            <div style="position: relative; height: 400px;">
+                <canvas id="priceChart"></canvas>
+            </div>
+
+            <div style="position: relative; height: 150px; margin-top: 10px;">
+                <canvas id="volumeChart"></canvas>
+            </div>
 
             <div class="flex justify-center gap-6 mt-8 flex-wrap">
                 <button onclick="changeTimeframe('1m')" class="tf-btn glass px-8 py-3 rounded-full text-base font-medium neon-glow active" id="tf-1m">1分钟</button>
@@ -118,7 +123,6 @@
             </div>
         </div>
 
-        <!-- 余额 & 杠杆（其余部分保持 v2.1 结构，略微加大字体/间距） -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
             <div class="glass p-10 rounded-3xl neon-glow text-center">
                 <div class="text-gray-300 text-xl mb-4">账户余额</div>
@@ -127,7 +131,6 @@
             <div class="glass p-10 rounded-3xl neon-glow text-center">
                 <div class="text-gray-300 text-xl mb-4">杠杆倍数</div>
                 <select id="leverage-select" onchange="updateLeverage()" class="w-full bg-transparent text-6xl font-bold text-amber-300 focus:outline-none text-center">
-                    <!-- 选项同前 -->
                     <option value="10">10x</option>
                     <option value="50">50x</option>
                     <option value="100">100x</option>
@@ -139,35 +142,96 @@
             </div>
         </div>
 
-        <!-- 当前仓位、开仓区、交易历史 等保持 v2.1/v2.0 逻辑，这里省略不变代码，请从之前版本复制对应 <div> 和 function -->
+        <div id="position-card" class="hidden glass rounded-3xl p-8 mb-10 neon-glow">
+            <div class="flex justify-between items-center mb-6">
+                <div id="pos-side" class="text-3xl font-bold"></div>
+                <button onclick="closePosition()" class="bg-red-600/80 hover:bg-red-700 px-10 py-4 rounded-2xl font-bold text-lg neon-glow">一键平仓</button>
+            </div>
+            <div id="pos-info" class="grid grid-cols-2 gap-8 text-xl"></div>
+        </div>
 
-        <!-- ... 粘贴你之前的 position-card、开仓区、历史表格 等 HTML 和 JS function ... -->
+        <div class="glass rounded-3xl p-8 mb-10 neon-glow">
+            <div class="text-2xl font-bold mb-6 text-center">开新仓位</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-gray-300 mb-3">保证金 (USDT)</label>
+                    <input id="margin" type="number" value="10" class="w-full bg-black/30 border border-emerald-500/30 rounded-2xl px-6 py-5 text-2xl focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/50">
+                </div>
+                <div>
+                    <label class="block text-gray-300 mb-3">止盈价 (可选)</label>
+                    <input id="tp" type="number" placeholder="自动平仓" class="w-full bg-black/30 border border-emerald-500/30 rounded-2xl px-6 py-5 text-2xl focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/50">
+                </div>
+                <div>
+                    <label class="block text-gray-300 mb-3">止损价 (可选)</label>
+                    <input id="sl" type="number" placeholder="自动平仓" class="w-full bg-black/30 border border-emerald-500/30 rounded-2xl px-6 py-5 text-2xl focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/50">
+                </div>
+            </div>
+            <div class="flex gap-6 mt-10">
+                <button onclick="openLong()" class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 py-6 rounded-3xl text-3xl font-bold neon-glow">🚀 开多</button>
+                <button onclick="openShort()" class="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 py-6 rounded-3xl text-3xl font-bold neon-glow">🔻 开空</button>
+            </div>
+        </div>
 
+        <div class="glass rounded-3xl p-8 neon-glow">
+            <div class="flex justify-between items-center mb-6">
+                <div class="text-2xl font-bold">交易历史</div>
+                <div id="stats" class="text-lg text-gray-300"></div>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="history-table" class="w-full text-base">
+                    <thead><tr class="text-gray-400 border-b border-emerald-500/30"><th class="text-left py-4">时间</th><th>币种</th><th>方向</th><th>开仓</th><th>平仓</th><th>盈亏</th></tr></thead>
+                    <tbody id="history-body" class="divide-y divide-gray-700/50"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-center text-gray-500 mt-12 text-sm">价格实时 • Binance Futures • 纯本地娱乐模拟</div>
+    </div>
+
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="glass rounded-3xl p-10 w-full max-w-lg neon-glow">
+            <h3 class="text-3xl font-bold mb-8 text-center">账户设置</h3>
+            <div class="space-y-8">
+                <div>
+                    <label class="block text-gray-300 mb-3 text-lg">初始资金</label>
+                    <input id="new-balance" type="number" value="10000" class="w-full bg-black/30 px-6 py-5 rounded-2xl text-3xl border border-emerald-500/30 focus:border-emerald-400">
+                </div>
+                <div class="grid grid-cols-4 gap-4">
+                    <button onclick="quickSetBalance(1000)" class="glass py-4 rounded-2xl hover:bg-emerald-600/30">1K</button>
+                    <button onclick="quickSetBalance(10000)" class="glass py-4 rounded-2xl hover:bg-emerald-600/30">10K</button>
+                    <button onclick="quickSetBalance(50000)" class="glass py-4 rounded-2xl hover:bg-emerald-600/30">50K</button>
+                    <button onclick="quickSetBalance(100000)" class="glass py-4 rounded-2xl hover:bg-emerald-600/30">100K</button>
+                </div>
+                <button onclick="resetAccount()" class="w-full bg-red-600/80 hover:bg-red-700 py-5 rounded-2xl text-xl font-bold">重置全部（清仓+历史）</button>
+                <button onclick="hideSettings()" class="w-full bg-gray-700/50 hover:bg-gray-600 py-5 rounded-2xl text-xl">关闭</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        // tsParticles 初始化（粒子背景）
+        // ================== tsParticles 星尘背景 ==================
         tsParticles.load("tsparticles", {
             fpsLimit: 60,
             particles: {
-                number: { value: 18, density: { enable: true, value_area: 800 } },
-                color: { value: ["#00ffc8", "#00ff88", "#00aaff"] },
+                number: { value: 25, density: { enable: true, value_area: 1000 } },
+                color: { value: ["#a0d8ef", "#b3e5fc", "#e0f7fa", "#ffffff"] },
                 shape: { type: "circle" },
-                opacity: { value: 0.5, random: true },
-                size: { value: { min: 1, max: 4 }, random: true },
+                opacity: { value: 0.4, random: true, anim: { enable: true, speed: 1, opacity_min: 0.1 } },
+                size: { value: { min: 1, max: 3.5 }, random: true },
                 move: {
                     enable: true,
-                    speed: 0.4, // 超慢漂移
+                    speed: 0.25,
                     direction: "none",
                     random: true,
-                    out_mode: "out"
+                    out_mode: "out",
+                    attract: { enable: false }
                 }
             },
             interactivity: { events: { onhover: { enable: false }, onclick: { enable: false } } },
             detectRetina: true
         });
 
-        // Loading 淡出（模拟 2.5 秒加载）
+        // ================== Loading 淡出 ==================
         window.addEventListener('load', () => {
             setTimeout(() => {
                 const loading = document.getElementById('loading');
@@ -176,11 +240,346 @@
             }, 2500);
         });
 
-        // 其余 JS 逻辑同 v2.1（initChart、connectWS、updatePrice 等）
-        // 请把之前的 script 内容粘贴到这里，替换或合并
-        // 例如：
-        // let balance = 10000; ... window.onload = () => { ... }
+        // ================== 全局变量 ==================
+        let balance = 10000;
+        let leverage = 10000;
+        let currentSymbol = "BTC";
+        let currentPrice = 0;
+        let prevPrice = 0;
+        let position = null;
+        let trades = [];
+        let ws = null;
+        let currentTF = "1m";
+        let isCandle = false;
+        let mainChart, volumeChart;
+        const symbols = { BTC: "BTCUSDT", ETH: "ETHUSDT", SOL: "SOLUSDT" };
 
+        // ================== 本地存储 ==================
+        function loadData() {
+            balance = parseFloat(localStorage.getItem('simBalance')) || 10000;
+            trades = JSON.parse(localStorage.getItem('simTrades')) || [];
+            position = JSON.parse(localStorage.getItem('simPosition')) || null;
+        }
+        function saveData() {
+            localStorage.setItem('simBalance', balance);
+            localStorage.setItem('simTrades', JSON.stringify(trades));
+            if (position) localStorage.setItem('simPosition', JSON.stringify(position));
+            else localStorage.removeItem('simPosition');
+        }
+
+        // ================== UI 更新 ==================
+        function updateBalance() {
+            document.getElementById('balance').textContent = balance.toLocaleString('zh-CN', {minimumFractionDigits: 2}) + ' USDT';
+        }
+        function updateStats() {
+            const total = trades.length;
+            const wins = trades.filter(t => parseFloat(t.pnl) > 0).length;
+            const totalPnl = trades.reduce((sum, t) => sum + parseFloat(t.pnl), 0);
+            const winRate = total ? Math.round(wins / total * 100) : 0;
+            document.getElementById('stats').innerHTML = `总交易 ${total} | 胜率 ${winRate}% | 总盈亏 <span class="${totalPnl>=0?'text-emerald-400':'text-red-400'} font-bold">${totalPnl.toFixed(2)}</span> USDT`;
+        }
+
+        // ================== WebSocket ==================
+        function connectWS() {
+            if (ws) ws.close();
+            ws = new WebSocket(`wss://fstream.binance.com/ws/${symbols[currentSymbol].toLowerCase()}@markPrice`);
+            ws.onmessage = e => {
+                const data = JSON.parse(e.data);
+                const price = parseFloat(data.p);
+                if (price) updatePrice(price);
+            };
+            ws.onclose = () => setTimeout(connectWS, 2000);
+        }
+
+        function switchSymbol(sym) {
+            if (position) return alert("请先平仓！");
+            currentSymbol = sym;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
+            document.getElementById('tab-' + sym).classList.add('tab-active');
+            connectWS();
+            document.getElementById('price').textContent = "切换中...";
+            fetchInitialPrice();
+            changeTimeframe(currentTF);
+        }
+
+        function fetchInitialPrice() {
+            fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbols[currentSymbol]}`)
+                .then(r => r.json()).then(d => updatePrice(parseFloat(d.price)));
+        }
+
+        // ================== 图表初始化 ==================
+        function initChart() {
+            const mainCtx = document.getElementById('priceChart');
+            mainChart = new Chart(mainCtx, {
+                type: 'line',
+                data: { datasets: [{ label: '价格', data: [], borderColor: '#00ffc8', borderWidth: 2, tension: 0.2, fill: false }] },
+                options: getChartOptions(false)
+            });
+
+            const volCtx = document.getElementById('volumeChart');
+            volumeChart = new Chart(volCtx, {
+                type: 'bar',
+                data: { datasets: [{ label: '成交量', data: [], backgroundColor: [], borderWidth: 0 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { display: false },
+                        y: { position: 'right', grid: { display: false }, ticks: { color: '#aaa', font: { size: 10 } } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            mainChart.options.plugins.crosshair = {
+                line: { color: 'rgba(0, 255, 200, 0.6)', width: 1, dashPattern: [5, 5] },
+                sync: { enabled: true },
+                zoom: { enabled: false }
+            };
+        }
+
+        function getChartOptions(isCandleMode) {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    crosshair: true,
+                    tooltip: { enabled: true, mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: currentTF === '1h' ? 'hour' : 'minute' },
+                        grid: { color: 'rgba(100,100,120,0.18)', borderDash: [5,5] },
+                        ticks: { color: '#aaa', maxTicksLimit: 12 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(100,100,120,0.18)', borderDash: [5,5] },
+                        ticks: { color: '#aaa' }
+                    }
+                }
+            };
+        }
+
+        // ================== 时间框架 & 数据加载 ==================
+        function changeTimeframe(tf) {
+            currentTF = tf;
+            document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tf-' + tf).classList.add('active');
+
+            const limit = tf === '1h' ? 120 : 200;
+            fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbols[currentSymbol]}&interval=${tf}&limit=${limit}`)
+                .then(r => r.json())
+                .then(data => {
+                    const candleData = data.map(k => ({
+                        x: new Date(parseInt(k[0])),
+                        o: parseFloat(k[1]),
+                        h: parseFloat(k[2]),
+                        l: parseFloat(k[3]),
+                        c: parseFloat(k[4])
+                    }));
+
+                    const lineData = candleData.map(d => ({ x: d.x, y: d.c }));
+
+                    const volumes = data.map((k, i) => ({
+                        x: new Date(parseInt(k[0])),
+                        y: parseFloat(k[5]),
+                        backgroundColor: parseFloat(k[4]) >= parseFloat(k[1]) ? 'rgba(0, 255, 136, 0.6)' : 'rgba(255, 51, 102, 0.6)'
+                    }));
+
+                    if (isCandle) {
+                        mainChart.config.type = 'candlestick';
+                        mainChart.data.datasets[0] = { label: 'K线', data: candleData };
+                    } else {
+                        mainChart.config.type = 'line';
+                        mainChart.data.datasets[0] = { label: '价格', data: lineData, borderColor: '#00ffc8', borderWidth: 2 };
+                    }
+                    mainChart.options = getChartOptions(isCandle);
+                    mainChart.update();
+
+                    volumeChart.data.datasets[0].data = volumes;
+                    volumeChart.update();
+                });
+        }
+
+        function updatePrice(price) {
+            const priceEl = document.getElementById('price');
+            priceEl.classList.toggle('price-up', price > prevPrice);
+            priceEl.classList.toggle('price-down', price < prevPrice);
+            priceEl.textContent = price.toFixed(2);
+            document.getElementById('price-change').textContent = prevPrice ? (price - prevPrice).toFixed(2) : '';
+            prevPrice = currentPrice = price;
+
+            const now = new Date();
+            const newPoint = { x: now, y: price };
+            mainChart.data.datasets[0].data.push(newPoint);
+            if (mainChart.data.datasets[0].data.length > 150) mainChart.data.datasets[0].data.shift();
+            mainChart.update('none');
+
+            if (position) {
+                updatePosition();
+                checkTP_SL();
+                checkLiquidation();
+            }
+        }
+
+        // ================== 切换蜡烛 / 线图 ==================
+        document.getElementById('toggleCandle')?.addEventListener('click', () => {
+            isCandle = !isCandle;
+            document.getElementById('toggleCandle').textContent = isCandle ? '切换线图' : '切换蜡烛图';
+            changeTimeframe(currentTF);
+        });
+
+        // ================== 杠杆、开仓、平仓、TP/SL、强平、历史等函数（保持不变） ==================
+        function updateLeverage() {
+            leverage = parseInt(document.getElementById('leverage-select').value);
+        }
+
+        function openPosition(side) {
+            if (position) return alert('请先平仓！');
+            const margin = parseFloat(document.getElementById('margin').value);
+            const tp = parseFloat(document.getElementById('tp').value) || null;
+            const sl = parseFloat(document.getElementById('sl').value) || null;
+
+            if (!margin || margin > balance) return alert('保证金错误！');
+
+            const qty = (margin * leverage) / currentPrice;
+            position = {
+                side, entry: currentPrice, qty, margin, symbol: currentSymbol,
+                tp, sl
+            };
+            balance -= margin;
+            updateBalance();
+            updatePosition();
+            saveData();
+            alert(`✅ 开${side === 'long' ? '多' : '空'}成功！`);
+        }
+        function openLong() { openPosition('long'); }
+        function openShort() { openPosition('short'); }
+
+        function calculatePNL() {
+            if (!position) return 0;
+            const diff = position.side === 'long' ? currentPrice - position.entry : position.entry - currentPrice;
+            return diff * position.qty;
+        }
+
+        function updatePosition() {
+            const pnl = calculatePNL();
+            const roi = (pnl / position.margin * 100).toFixed(2);
+            document.getElementById('position-card').classList.remove('hidden');
+            document.getElementById('pos-side').innerHTML = position.side === 'long' ? '🟢 多头' : '🔴 空头';
+            document.getElementById('pos-info').innerHTML = `
+                <div>开仓价 <span class="font-bold">${position.entry.toFixed(2)}</span></div>
+                <div>仓位 <span class="font-bold">${position.qty.toFixed(6)} ${position.symbol}</span></div>
+                <div>保证金 <span class="font-bold">${position.margin.toFixed(2)} USDT</span></div>
+                <div class="${pnl>=0?'text-emerald-400':'text-red-400'}">未实现 ${pnl.toFixed(2)} (${roi}%)</div>
+            `;
+        }
+
+        function checkTP_SL() {
+            if (!position || !currentPrice) return;
+            const p = position;
+            if (p.tp && ((p.side === 'long' && currentPrice >= p.tp) || (p.side === 'short' && currentPrice <= p.tp))) {
+                closePosition(true, "止盈触发");
+            }
+            if (p.sl && ((p.side === 'long' && currentPrice <= p.sl) || (p.side === 'short' && currentPrice >= p.sl))) {
+                closePosition(true, "止损触发");
+            }
+        }
+
+        function closePosition(isAuto = false, reason = "") {
+            if (!position) return;
+            const pnl = calculatePNL();
+            balance += position.margin + pnl;
+            const exitPrice = currentPrice;
+
+            trades.unshift({
+                time: new Date().toLocaleString('zh-CN'),
+                symbol: position.symbol,
+                side: position.side === 'long' ? '多' : '空',
+                entry: position.entry.toFixed(2),
+                exit: exitPrice.toFixed(2),
+                pnl: pnl.toFixed(2)
+            });
+
+            if (trades.length > 50) trades.pop();
+
+            const msg = isAuto ? `💥 ${reason}！盈亏 ${pnl.toFixed(2)} USDT` : `✅ 平仓完成！盈亏 ${pnl.toFixed(2)} USDT`;
+            alert(msg);
+
+            position = null;
+            document.getElementById('position-card').classList.add('hidden');
+            updateBalance();
+            renderHistory();
+            updateStats();
+            saveData();
+        }
+
+        function checkLiquidation() {
+            if (!position) return;
+            const pnl = calculatePNL();
+            if (pnl <= -position.margin * 0.999) {
+                balance += pnl;
+                alert(`💥 强平！亏损 ${pnl.toFixed(2)} USDT`);
+                position = null;
+                document.getElementById('position-card').classList.add('hidden');
+                updateBalance();
+                saveData();
+            }
+        }
+
+        function renderHistory() {
+            const tbody = document.getElementById('history-body');
+            tbody.innerHTML = trades.map(t => `
+                <tr class="border-t border-gray-700">
+                    <td class="py-3">${t.time}</td>
+                    <td>${t.symbol}</td>
+                    <td class="${t.side==='多'?'text-emerald-400':'text-red-400'}">${t.side}</td>
+                    <td>${t.entry}</td>
+                    <td>${t.exit}</td>
+                    <td class="${parseFloat(t.pnl)>=0?'text-emerald-400':'text-red-400'}">${t.pnl}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ================== 设置弹窗 ==================
+        function showSettings() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('new-balance').value = balance;
+        }
+        function hideSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+        function quickSetBalance(val) {
+            document.getElementById('new-balance').value = val;
+        }
+        function resetAccount() {
+            if (!confirm('确定重置全部数据？')) return;
+            balance = parseFloat(document.getElementById('new-balance').value) || 10000;
+            position = null;
+            trades = [];
+            document.getElementById('position-card').classList.add('hidden');
+            updateBalance();
+            renderHistory();
+            updateStats();
+            saveData();
+            hideSettings();
+            alert('账户已重置！');
+        }
+
+        // ================== 初始化 ==================
+        window.onload = () => {
+            loadData();
+            updateBalance();
+            updateStats();
+            renderHistory();
+            initChart();
+            connectWS();
+            fetchInitialPrice();
+            changeTimeframe('1m');
+            document.getElementById('leverage-select').value = leverage;
+        };
     </script>
 </body>
 </html>
